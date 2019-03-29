@@ -4,7 +4,7 @@ language: minimal
 
 env:
   global:
-    - DOCKSAL_USE_RC=1
+    - DOCKSAL_VERSION=develop
 
 install:
   # Install Docksal to have a matching versions of Docker on the build host
