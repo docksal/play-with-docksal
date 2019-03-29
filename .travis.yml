@@ -1,0 +1,23 @@
+dist: xenial
+
+language: minimal
+
+env:
+  - REPO=docksal/docksal
+  - DOCKSAL_USE_RC=1
+
+install:
+  # Install Docksal to have a matching versions of Docker on the build host
+  - curl -fsSL https://get.docksal.io | bash
+  - fin version
+  - fin sysinfo
+
+script:
+  - make
+#  - make test
+
+after_success:
+  - ${TRAVIS_BUILD_DIR}/release.sh
+
+after_failure:
+  - make logs
