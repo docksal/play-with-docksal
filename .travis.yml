@@ -3,8 +3,8 @@ dist: xenial
 language: minimal
 
 env:
-  - REPO=docksal/docksal
-  - DOCKSAL_USE_RC=1
+  global:
+    - DOCKSAL_USE_RC=1
 
 install:
   # Install Docksal to have a matching versions of Docker on the build host
@@ -13,11 +13,12 @@ install:
   - fin sysinfo
 
 script:
-  - make
+  - make images
+  - make build
 #  - make test
 
 after_success:
-  - ${TRAVIS_BUILD_DIR}/release.sh
+  - make push
 
 after_failure:
   - make logs
