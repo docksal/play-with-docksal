@@ -7,6 +7,7 @@ CDW=$(pwd)
 # Pull and generate default stack images archive.
 # We just need a dummy project folder to have fin generate project images for the default stack.
 rm -rf default && mkdir -p default/.docksal && cd default
+fin docker-compose pull
 fin image save --project
 
 # Move the image archive to the docker build folder
