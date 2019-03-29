@@ -7,6 +7,8 @@ TAG ?= $(VERSION)
 REPO = docksal/play-with-docksal
 NAME = docksal-dind
 
+.EXPORT_ALL_VARIABLES:
+
 .PHONY: build test push shell run start stop logs clean release
 
 build:
