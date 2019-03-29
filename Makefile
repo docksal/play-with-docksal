@@ -1,10 +1,10 @@
 DOCKER ?= docker
 
 FROM ?= docker:18.09.2-dind
-VERSION ?= dind
+VERSION ?= latest
 TAG ?= $(VERSION)
 
-REPO = docksal/docksal
+REPO = docksal/play-with-docksal
 NAME = docksal-dind
 
 .PHONY: build test push shell run start stop logs clean release
