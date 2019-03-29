@@ -1,7 +1,7 @@
 DOCKER ?= docker
 
 FROM ?= docker:18.09.2-dind
-VERSION ?= latest
+VERSION ?= dev
 TAG ?= $(VERSION)
 
 REPO = docksal/play-with-docksal
@@ -47,6 +47,7 @@ default-images:
 
 images: system-images default-images
 
-release: push
+release:
+	@scripts/release.sh
 
 default: build

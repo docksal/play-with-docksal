@@ -18,7 +18,7 @@ script:
 #  - make test
 
 after_success:
-  - make push
+  - make release
 
 after_failure:
   - make logs
