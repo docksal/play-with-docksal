@@ -1,8 +1,7 @@
 DOCKER ?= docker
 
 FROM ?= docker:18.09.2-dind
-VERSION ?= dev
-TAG ?= $(VERSION)
+TAG ?= pure
 
 REPO = docksal/play-with-docksal
 NAME = docksal-dind
@@ -12,7 +11,7 @@ NAME = docksal-dind
 .PHONY: build test push shell run start stop logs clean release
 
 build:
-	$(DOCKER) build -t $(REPO):$(TAG) --build-arg FROM=$(FROM) --build-arg VERSION=$(VERSION) ./dind
+	$(DOCKER) build -t $(REPO):$(TAG) --build-arg FROM=$(FROM) -f ./dind/Dockerfile:$(TAG) ./dind
 
 test:
 	IMAGE=$(REPO):$(TAG) NAME=$(NAME) VERSION=$(VERSION) ./tests/test.bats
@@ -40,14 +39,6 @@ logs:
 
 clean:
 	$(DOCKER) rm -f $(NAME) >/dev/null 2>&1 || true
-
-system-images:
-	@scripts/system-images.sh
-
-default-images:
-	@scripts/default-images.sh
-
-images: system-images default-images
 
 release:
 	@scripts/release.sh

@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Play-with-docksal template
+
+Parameters:
+  InstanceType:
+    Description: "EC2 instance type (default: t3.small = 2 vCPU, 2GB RAM)"
+    Type: String
+    # Instances with < 2GB RAM should only be used for testing the CloudFormation template
+    # t3.small: 2 vCPU, 2GB RAM
+    Default: t3.small
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t2.xlarge
+      - t2.2xlarge
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m4.16xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - m5.24xlarge
+      - m5d.large
+      - m5d.xlarge
+      - m5d.2xlarge
+      - m5d.4xlarge
+      - m5d.12xlarge
+      - m5d.24xlarge
+    ConstraintDescription: "Must be a valid EC2 instance type"
+  KeyName:
+    Description: "Name of an existing EC2 KeyPair to enable SSH access to the instance"
+    Type: "AWS::EC2::KeyPair::KeyName"
+    ConstraintDescription: "Must be the name of an existing EC2 KeyPair"
+  DataDiskSize:
+    Description: "Persistent volume size (GiB). Valid range: 20-1024"
+    Type: Number
+    MinValue: 20
+    MaxValue: 1024
+    Default: 50
+  ExistingEIP:
+    Description: "Use an existing Elastic IP for the instance"
+    Type: String
+    Default: ""
+  ExistingDataVolume:
+    Description: "Use an existing EBS volume for instance persistent storage. If set, must also set the instance availability zone to match the one of the EBS volume."
+    Type: String
+    Default: ""
+  ManualAZ:
+    Description: "Manually set instance availability zone (e.g. us-east-2a)"
+    Type: String
+    Default: ""
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Basic: Required"
+        Parameters:
+          - InstanceType
+          - KeyName
+      - Label:
+          default: "Advanced: Optional"
+        Parameters:
+          - DataDiskSize
+          - ExistingEIP
+          - ExistingDataVolume
+          - ManualAZ
+    ParameterLabels:
+      InstanceType:
+        default: "Instance type"
+      KeyName:
+        default: "SSH key"
+      DataDiskSize:
+        default: "Data disk size"
+      ExistingEIP:
+        default: "Elastic IP"
+      ExistingDataVolume:
+        default: "Persistent data volume"
+      ManualAZ:
+        default: "Availability zone"
+
+Mappings:
+  Region2AMI:
+    ap-south-1:
+      AMI: ami-0d773a3b7bb2bb1c1
+    eu-west-3:
+      AMI: ami-08182c55a1c188dee
+    eu-west-2:
+      AMI: ami-0b0a60c0a2bd40612
+    eu-west-1:
+      AMI: ami-00035f41c82244dab
+    ap-northeast-2:
+      AMI: ami-06e7b9c5e0c4dd014
+    ap-northeast-1:
+      AMI: ami-07ad4b1c3af1ea214
+    sa-east-1:
+      AMI: ami-03c6239555bb12112
+    ca-central-1:
+      AMI: ami-0427e8367e3770df1
+    ap-southeast-1:
+      AMI: ami-0c5199d385b432989
+    ap-southeast-2:
+      AMI: ami-07a3bd4944eb120a0
+    eu-central-1:
+      AMI: ami-0bdf93799014acdc4
+    us-east-1:
+      AMI: ami-0ac019f4fcb7cb7e6
+    us-east-2:
+      AMI: ami-0f65671a86f061fcd
+    us-west-1:
+      AMI: ami-063aa838bd7631e0b
+    us-west-2:
+      AMI: ami-0bbe6b35405ecebdb
+
+Conditions:
+  SetAZ: !Not [!Equals [!Ref ManualAZ, ""]]
+  CreateEIP: !Equals [!Ref ExistingEIP, ""]
+  CreateDataVolume: !Equals [!Ref ExistingDataVolume, ""]
+
+Resources:
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Enable SSH, HTTP, HTTPS'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+  IPAddress:
+    Type: 'AWS::EC2::EIP'
+    Condition: CreateEIP
+  IPAssoc:
+    Type: 'AWS::EC2::EIPAssociation'
+    Properties:
+      InstanceId: !Ref EC2Instance
+      EIP: !If [CreateEIP, !Ref IPAddress, !Ref ExistingEIP]
+  PersistentVolume:
+    Type: "AWS::EC2::Volume"
+    Condition: CreateDataVolume
+    Properties:
+      Size: !Ref DataDiskSize
+      AvailabilityZone: !GetAtt EC2Instance.AvailabilityZone
+  PersistentVolumeMount:
+    Type: "AWS::EC2::VolumeAttachment"
+    Properties:
+      InstanceId: !Ref EC2Instance
+      VolumeId: !If [CreateDataVolume, !Ref PersistentVolume, !Ref ExistingDataVolume]
+      Device: /dev/sdp
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref InstanceType
+      AvailabilityZone: !If [SetAZ, !Ref ManualAZ, !Ref "AWS::NoValue"]
+      ImageId: !FindInMap [Region2AMI, !Ref "AWS::Region", AMI]
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref InstanceSecurityGroup
+      BlockDeviceMappings:
+        # Root volume
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: '8'
+      UserData: !Base64
+        'Fn::Join':
+          - ''
+          - - |
+
+
+Outputs:
+  InstanceID:
+    Value: !Ref EC2Instance
+  InstancePublicIP:
+    Value: !GetAtt EC2Instance.PublicIp
+  InstanceURL:
+    Value: !Join [ '', [ 'https://', !GetAtt EC2Instance.PublicIp, '.nip.io' ] ]
