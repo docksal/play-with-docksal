@@ -119,7 +119,8 @@ mkdir -p $GOPATH/bin
 curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 mkdir -p $GOPATH/src/github.com/play-with-docker
 cd $GOPATH/src/github.com/play-with-docker
-git clone https://github.com/play-with-docker/play-with-docker.git
+git clone https://github.com/docksal/play-with-docksal.git
+mv play-with-docksal/play-with-docker .
 cd play-with-docker && dep ensure -v
 
 sed -i 's#"playground-domain", "localhost"#"playground-domain", "'${HOST}'"#' config/config.go
