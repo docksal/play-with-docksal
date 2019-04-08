@@ -9,6 +9,7 @@ type SessionConfig struct {
 	UserId     string
 	Duration   time.Duration
 	Stack      string
+	Repo       string
 	StackName  string
 	ImageName  string
 }
@@ -20,6 +21,7 @@ type Session struct {
 	PwdIpAddress string    `json:"pwd_ip_address" bson:"pwd_ip_address"`
 	Ready        bool      `json:"ready" bson:"ready"`
 	Stack        string    `json:"stack" bson:"stack"`
+	Repo         string    `json:"repo" bson:"repo"`
 	StackName    string    `json:"stack_name" bson:"stack_name"`
 	ImageName    string    `json:"image_name" bson:"image_name"`
 	Host         string    `json:"host" bson:"host"`

@@ -8,7 +8,7 @@ sed 's/^::1.*//' /etc/hosts.bak > /etc/hosts
 
 # Figure out host's IP and add a record in /etc/hosts
 # registry-cache is a caching registry running on the playground host
-gateway=$(route | awk '/^default/ { print $2 }')
+gateway=$(ip route | awk '/^default/ { print $3 }')
 echo "${gateway} registry-cache" >> /etc/hosts
 
 sed -i "s/\PWD_IP_ADDRESS/$PWD_IP_ADDRESS/" /etc/docker/daemon.json

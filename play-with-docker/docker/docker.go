@@ -252,6 +252,7 @@ func (d *docker) ContainerDelete(name string) error {
 type CreateContainerOpts struct {
 	Image         string
 	SessionId     string
+	Repo          string
 	ContainerName string
 	Hostname      string
 	ServerCert    []byte

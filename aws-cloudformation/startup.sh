@@ -121,13 +121,9 @@ mkdir -p $GOPATH/src/github.com/play-with-docker
 cd $GOPATH/src/github.com/play-with-docker
 git clone https://github.com/docksal/play-with-docksal.git
 mv play-with-docksal/play-with-docker .
+rm -rf play-with-docksal
 cd play-with-docker && dep ensure -v
 
 sed -i 's#"playground-domain", "localhost"#"playground-domain", "'${HOST}'"#' config/config.go
-
-mkdir -p /var/lib/registry/
-docker run --rm --entrypoint /bin/sh registry:2 -c "cat /etc/docker/registry/config.yml" > /var/lib/registry/config.yml
-echo -e "proxy:\n  remoteurl: https://registry-1.docker.io" >>/var/lib/registry/config.yml
-docker run -d --restart=always -p 5000:5000 --name registry-mirror -v /var/lib/registry:/var/lib/registry registry:2 /var/lib/registry/config.yml
 
 docker-compose up -d

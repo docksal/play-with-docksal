@@ -26,6 +26,9 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	if s.Stack != "" {
 		go core.SessionDeployStack(s)
 	}
+	if s.Repo != "" {
+		go core.SessionDeployRepo(s)
+	}
 
 	playground := core.PlaygroundGet(s.PlaygroundId)
 	if playground == nil {

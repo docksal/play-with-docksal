@@ -69,6 +69,7 @@ func (d *DinD) InstanceNew(session *types.Session, conf types.InstanceConfig) (*
 	opts := docker.CreateContainerOpts{
 		Image:         conf.ImageName,
 		SessionId:     session.Id,
+		Repo:          session.Repo,
 		ContainerName: containerName,
 		Hostname:      conf.Hostname,
 		ServerCert:    conf.ServerCert,
