@@ -52,7 +52,9 @@ RUN mkdir -p /var/run/pwd/certs && mkdir -p /var/run/pwd/uploads \
 
 # Remove IPv6 alias for localhost and start docker in the background ...
 CMD cat /etc/hosts >/etc/hosts.bak && \
+    gateway=$(route | awk '/^default/ { print $2 }') && \
     sed 's/^::1.*//' /etc/hosts.bak > /etc/hosts && \
+    echo "${gateway} registry-cache" >> /etc/hosts && \
     sed -i "s/\PWD_IP_ADDRESS/$PWD_IP_ADDRESS/" /etc/docker/daemon.json && \
     sed -i "s/\DOCKER_TLSENABLE/$DOCKER_TLSENABLE/" /etc/docker/daemon.json && \
     sed -i "s/\DOCKER_TLSCACERT/$DOCKER_TLSCACERT/" /etc/docker/daemon.json && \

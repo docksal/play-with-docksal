@@ -35,6 +35,19 @@ services:
             - "8022:22"
             - "8053:53"
             - "443:443"
+
+    registry:
+        container_name: registry
+        image: registry:2
+        volumes:
+            # Mount registry config directory
+            - ./registry:/etc/docker/registry
+            # Registry data storage volume
+            - registry:/var/lib/registry
+        ports:
+            - "5000:5000"
+
 volumes:
     sessions:
     networks:
+    registry:
