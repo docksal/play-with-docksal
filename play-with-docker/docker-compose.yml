@@ -1,0 +1,64 @@
+version: '3.2'
+services:
+    haproxy:
+        container_name: haproxy
+        image: haproxy
+        ports:
+            - "80:8080"
+        volumes:
+            - ./haproxy:/usr/local/etc/haproxy
+            
+    pwd:
+        # pwd daemon container always needs to be named this way
+        container_name: pwd
+        # use the latest golang image
+        image: golang
+        # go to the right place and starts the app
+        command:
+          - /bin/sh
+          - -c
+          - |
+            ssh-keygen -N "" -t rsa -f /etc/ssh/ssh_host_rsa_key >/dev/null;
+            cd /go/src/github.com/play-with-docker/play-with-docker;
+            go run api.go \
+              -dind-images "franela/dind,docksal/play-with-docksal:dind-edge,docksal/play-with-docksal:drupal8-edge,docksal/play-with-docksal:wordpress-edge" \
+              -default-dind-image docksal/play-with-docksal:dind-edge \
+              -save /pwd/sessions \
+              -name l2 \
+            ;
+        volumes:
+            # since this app creates networks and launches containers, we need to talk to docker daemon
+            - /var/run/docker.sock:/var/run/docker.sock
+            # mount the box mounted shared folder to the container
+            - $GOPATH/src:/go/src
+            - sessions:/pwd
+    l2:
+        container_name: l2
+        # use the latest golang image
+        image: golang
+        # go to the right place and starts the app
+        command: /bin/sh -c 'ssh-keygen -N "" -t rsa -f /etc/ssh/ssh_host_rsa_key >/dev/null; cd /go/src/github.com/play-with-docker/play-with-docker/router/l2; go run l2.go -ssh_key_path /etc/ssh/ssh_host_rsa_key -name l2 -save /pwd/networks'
+        volumes:
+            - $GOPATH/src:/go/src
+            - /var/run/docker.sock:/var/run/docker.sock
+            - networks:/pwd
+        ports:
+            - "8022:22"
+            - "8053:53"
+            - "443:443"
+
+    registry:
+        container_name: registry
+        image: registry:2
+        volumes:
+            # Mount registry config directory
+            - ./registry:/etc/docker/registry
+            # Registry data storage volume
+            - registry:/var/lib/registry
+        ports:
+            - "5000:5000"
+
+volumes:
+    sessions:
+    networks:
+    registry:

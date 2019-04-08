@@ -4,21 +4,65 @@ language: minimal
 
 env:
   global:
-    - DOCKSAL_VERSION=develop
+    - AWS_REGION=us-east-2
+    - AWS_ACCESS_KEY_ID=AKIAIPJXMNOEV65OMURA
+    # Encrypted AWS_SECRET_ACCESS_KEY
+    - secure: AqRq1rr0yuET0C21Kprz3N5nc3eXEv3uQQh+P0JLCisIzcUMLESDOvNRvatsQSY9MmjAJLwYRveuOQF61rKkvRgVV3ZfziFOTyQVa4Cwwt8zsSZ8UtJTAr9wjJnQ7tiHpOqco/vJ8bTNIsgTBtLGXp+4m2rA+ZqRauHjhH4VcSYvijXwDzOryI+5oVp6pbPCpuuHrap5KBPflZ+sSBTBP4VewL2k4N2uLFXmi4sCmnj1bkMVK2Eaz/Le9oo4Y74oPrWuwX6kIo39PNUPw6Sc7xcuLi4C6cgJQNGLeyhLhySmIPz9E+vi+0bGayGfllNSpRK/7MoqPHObmnCcU04mNsIqvSiRzueLHjdP1UrhYTwb4Bcfnanyna7FB8CoATwDcfEBntG9QYGiwz9b9Hijspscg+vwAllLuHM5RkTrZwTPwNJX/ORgD5TZveFsWy/+/WX4//LP1Fi3qooo6z3UAj8yUMRJf/Wx15uA2VirkFACTxxl0sjwnxRYWtMHzhPbXhM2V2/2WvfXB5C0tQApC8vrR/qgjt/T2NgSjak/d3TKMUp4f8O7MRLSNhjI/edAAt5tJ3eIZAX8vz9eTCGyXf36INi3/0yhU+KZnfQQpijt68GpHk62G1tNwOuXa0fqT7/GJp0D58hEkTloUisrZz8voVLvR6Cjc45SHWfoyOs=
+    - TAGS="dind drupal8 wordpress"
+    - REPO=docksal/play-with-docksal
 
 install:
-  # Install Docksal to have a matching versions of Docker on the build host
-  - curl -fsSL https://get.docksal.io | bash
-  - fin version
-  - fin sysinfo
+  - curl -fsSL https://get.docker.io | bash
+  - sudo apt-get install -y -qq awscli >/dev/null
 
 script:
-  - make images
-  - make build
-#  - make test
+  - |
+    case "${TRAVIS_BRANCH}" in
+      "develop") VERSION=edge ;;
+      "master")  VERSION=stable ;;
+      *) exit 0 ;;
+    esac
+    [[ "${TRAVIS_TAG}" != "" ]] && VERSION="${TRAVIS_TAG:1:3}"
+    IMAGES=""
+    sed -i '/^docker-compose up -d$/d' ./aws-cloudformation/startup.sh
+    for TAG in ${TAGS}
+    do
+      make TAG=${TAG}
+      make TAG=${TAG} release
+      echo "docker pull ${REPO}:${TAG}-${VERSION}" >>./aws-cloudformation/startup.sh
+      IMAGES+=\"${REPO}:${TAG}-${VERSION}\",
+    done
+    echo "sed -i 's|\[\]string{config.DefaultDinDImage}|\[\]string{${IMAGES%,}}|' ./api.go" >>./aws-cloudformation/startup.sh
+    echo "docker-compose up -d" >>./aws-cloudformation/startup.sh
+  - cd aws-cloudformation && ./scripts/bash2yaml startup.sh
+  - mkdir -p build && mv -f template.yaml build
+  - aws cloudformation validate-template --region ${AWS_REGION} --template-body file://build/template.yaml
 
-after_success:
-  - make release
+deploy:
+  - provider: s3
+    region: "${AWS_REGION}"
+    access_key_id: "${AWS_ACCESS_KEY_ID}"
+    secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+    bucket: docksal-aws-templates
+    skip_cleanup: true
+    acl: public_read
+    local_dir: build
+    upload-dir: play-with-docksal/edge
+    on:
+      repo: docksal/play-with-docksal
+      branch: develop
+  - provider: s3
+    region: "${AWS_REGION}"
+    access_key_id: "${AWS_ACCESS_KEY_ID}"
+    secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+    bucket: docksal-aws-templates
+    skip_cleanup: true
+    acl: public_read
+    local_dir: build
+    upload-dir: play-with-docksal/stable
+    on:
+      repo: docksal/play-with-docksal
+      branch: master
 
 after_failure:
   - make logs
