@@ -11,7 +11,7 @@ NAME = docksal-dind
 .PHONY: build test push shell run start stop logs clean release
 
 build:
-	$(DOCKER) build -t $(REPO):$(TAG) --build-arg FROM=$(FROM) -f ./dind/Dockerfile:$(TAG) ./dind
+	$(DOCKER) build -t $(REPO):$(TAG) --build-arg FROM=$(FROM) -f ./dind/Dockerfile.$(TAG) ./dind
 
 test:
 	IMAGE=$(REPO):$(TAG) NAME=$(NAME) VERSION=$(VERSION) ./tests/test.bats

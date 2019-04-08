@@ -54,12 +54,6 @@ RUN set -xe; \
 # (note: we can't just symlink to /bin/true because it might be busybox)
 RUN rm /sbin/modprobe && echo '#!/bin/true' >/sbin/modprobe && chmod +x /sbin/modprobe
 
-# Install Docksal fin
-ENV DOCKSAL_VERSION=v1.12.0-rc3
-RUN set -xe; \
-	curl -fsSL "https://raw.githubusercontent.com/docksal/docksal/${DOCKSAL_VERSION}/bin/fin" -o /usr/local/bin/fin; \
-	chmod +x /usr/local/bin/fin;
-
 # Install a nice vimrc file and prompt (by soulshake)
 COPY ["docker-prompt", "sudo", "/usr/local/bin/"]
 COPY [".vimrc", ".profile", ".inputrc", ".gitconfig", "./root/"]
@@ -83,6 +77,5 @@ RUN set -xe; \
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-# Remove IPv6 alias for localhost and start docker in the background ...
+# Put a shell in the foreground, restarting it if it exits
 CMD while true ; do script -q -c "/bin/bash -l" /dev/null ; done
-# ... and then put a shell in the foreground, restarting it if it exits

@@ -1,6 +1,6 @@
-FROM docksal/play-with-docksal:pure
+FROM docksal/play-with-docksal:dind
 
 CMD \
     fin project create name=wp --choice=4 -y && \
+    # Put a shell in the foreground, restarting it if it exits
     while true ; do script -q -c "/bin/bash -l" /dev/null ; done
-# ... and then put a shell in the foreground, restarting it if it exits

@@ -1,9 +1,9 @@
 {
-    "insecure-registries" : ["172.18.0.1:5000"],
-    "registry-mirrors": ["http://172.18.0.1:5000"],
     "experimental": true,
     "debug": true,
     "log-level": "info",
+    "registry-mirrors": ["http://registry-cache:5000/"],
+    "insecure-registries": ["registry-cache:5000"],
     "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"],
     "tls": DOCKER_TLSENABLE,
     "tlscacert": "DOCKER_TLSCACERT",
