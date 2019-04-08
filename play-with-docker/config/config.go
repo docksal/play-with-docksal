@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"regexp"
+	"strings"
 
 	"github.com/gorilla/securecookie"
 
@@ -37,6 +38,10 @@ var SegmentId string
 // TODO move this to a sync map so it can be updated on demand when the configuration for a playground changes
 var Providers = map[string]map[string]*oauth2.Config{}
 
+// Support passing a list of allowed dind images
+var DinDImagesString string
+var DinDImages []string
+
 func ParseFlags() {
 	flag.StringVar(&LetsEncryptCertsDir, "letsencrypt-certs-dir", "/certs", "Path where let's encrypt certs will be stored")
 	flag.BoolVar(&UseLetsEncrypt, "letsencrypt-enable", false, "Enabled let's encrypt tls certificates")
@@ -55,6 +60,7 @@ func ParseFlags() {
 	flag.StringVar(&SSHKeyPath, "ssh_key_path", "", "SSH Private Key to use")
 	flag.StringVar(&CookieHashKey, "cookie-hash-key", "", "Hash key to use to validate cookies")
 	flag.StringVar(&CookieBlockKey, "cookie-block-key", "", "Block key to use to encrypt cookies")
+	flag.StringVar(&DinDImagesString, "dind-images", "franela/dind", "Comma-separated list of supported DinD images")
 	flag.StringVar(&DefaultDinDImage, "default-dind-image", "franela/dind", "Default DinD image to use if not specified otherwise")
 	flag.StringVar(&DefaultSessionDuration, "default-session-duration", "4h", "Default session duration if not specified otherwise")
 
@@ -64,6 +70,9 @@ func ParseFlags() {
 	flag.StringVar(&SegmentId, "segment-id", "", "Segment id to post metrics")
 
 	flag.Parse()
+
+	// Turn CSV into slice
+	DinDImages =  strings.Split(DinDImagesString, ",")
 
 	SecureCookie = securecookie.New([]byte(CookieHashKey), []byte(CookieBlockKey))
 
