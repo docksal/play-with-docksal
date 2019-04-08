@@ -21,6 +21,8 @@ services:
             ssh-keygen -N "" -t rsa -f /etc/ssh/ssh_host_rsa_key >/dev/null;
             cd /go/src/github.com/play-with-docker/play-with-docker;
             go run api.go \
+              -dind-images "franela/dind,docksal/dind,docksal/pwd" \
+              -default-dind-image docksal/dind \
               -save /pwd/sessions \
               -name l2 \
             ;
