@@ -47,7 +47,7 @@ Parameters:
     Type: Number
     MinValue: 20
     MaxValue: 1024
-    Default: 100
+    Default: 50
   ExistingEIP:
     Description: "Use an existing Elastic IP for the instance"
     Type: String
