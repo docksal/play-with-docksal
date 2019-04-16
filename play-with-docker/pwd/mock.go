@@ -33,11 +33,6 @@ func (m *Mock) SessionDeployStack(session *types.Session) error {
 	return args.Error(0)
 }
 
-func (m *Mock) SessionDeployRepo(session *types.Session) error {
-	args := m.Called(session)
-	return args.Error(0)
-}
-
 func (m *Mock) SessionGet(id string) (*types.Session, error) {
 	args := m.Called(id)
 	return args.Get(0).(*types.Session), args.Error(1)

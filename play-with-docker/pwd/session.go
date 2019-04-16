@@ -57,7 +57,6 @@ func (p *pwd) SessionNew(ctx context.Context, config types.SessionConfig) (*type
 	s.ExpiresAt = s.CreatedAt.Add(config.Duration)
 	s.Ready = true
 	s.Stack = config.Stack
-	s.Repo = config.Repo
 	s.UserId = config.UserId
 	s.PlaygroundId = config.Playground.Id
 
@@ -210,44 +209,6 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 	return nil
 }
 
-/////// Deploy repo
-
-func (p *pwd) SessionDeployRepo(s *types.Session) error {
-	defer observeAction("SessionDeployRepo", time.Now())
-
-	s.Ready = false
-	p.event.Emit(event.SESSION_READY, s.Id, false)
-	i, err := p.InstanceNew(s, types.InstanceConfig{ImageName: s.ImageName, PlaygroundFQDN: s.Host})
-	if err != nil {
-		log.Printf("Error creating instance for stack [%s]: %s\n", s.Stack, err)
-		return err
-	}
-
-	cmd := fmt.Sprintf("sleep 10 && docker swarm init --advertise-addr eth0 && git clone %s project && cd project && fin init", s.Repo)
-
-	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
-
-	dockerClient, err := p.dockerFactory.GetForSession(s)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	code, err := dockerClient.ExecAttach(i.Name, []string{"sh", "-c", cmd}, &w)
-	if err != nil {
-		log.Printf("Error executing stack [%s]: %s\n", s.Stack, err)
-		return err
-	}
-
-	log.Printf("Stack execution finished with code %d\n", code)
-	s.Ready = true
-	p.event.Emit(event.SESSION_READY, s.Id, true)
-	if err := p.storage.SessionPut(s); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (p *pwd) SessionGet(sessionId string) (*types.Session, error) {
 	defer observeAction("SessionGet", time.Now())
 
@@ -282,8 +243,6 @@ func (p *pwd) SessionSetup(session *types.Session, sconf SessionSetupConf) error
 
 	for _, conf := range sconf.Instances {
 		conf := conf
-		conf.Run = append(conf.Run, []string{"touch /run.log"})
-		log.Printf("lksflksjdf  Got: \n")
 		g.Go(func() error {
 			instanceConf := types.InstanceConfig{
 				ImageName:      conf.Image,
