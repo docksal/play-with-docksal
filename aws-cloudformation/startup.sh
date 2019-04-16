@@ -11,6 +11,9 @@ set -e  # Fail on errors
 DISK_LABEL="data-volume"
 MOUNT_POINT="/data"
 
+##########
+# Functions begin
+
 mount_part()
 {
     DATA_DISK=$1
@@ -50,37 +53,58 @@ create_part()
     /sbin/parted ${DATA_DISK} -s -a optimal mkpart primary 0% 100%
 }
 
+##########
+# Functions end
+
+apt-get -y update
+apt-get -y install awscli
+
+export AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/\(.*\)[a-z]/\1/')
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+STACK_ID=$(aws ec2 describe-instances --instance-id ${INSTANCE_ID} --query 'Reservations[*].Instances[*].Tags[?Key==`stack-id`].Value' --output text)
+EIP=$(aws cloudformation describe-stacks --stack-name=${STACK_ID} --query 'Stacks[*].Outputs[?OutputKey==`IPAddress`].OutputValue' --output text)
+VOLUME_ID=$(aws cloudformation describe-stacks --stack-name=${STACK_ID} --query 'Stacks[*].Outputs[?OutputKey==`PersistentVolume`].OutputValue' --output text)
+
+# attach elastic ip
+[[ "${EIP}" != "" ]] && aws ec2 associate-address --instance-id ${INSTANCE_ID} --public-ip ${EIP}
+
+# attach volume if exist
+if [[ "${VOLUME_ID}" != "" ]]
+then
+    aws ec2 attach-volume --volume-id ${VOLUME_ID} --instance-id ${INSTANCE_ID} --device /dev/sdp
+    # Wait for data volume attachment (necessary with AWS EBS)
+    wait_count=0
+    wait_max_attempts=12
+    while true
+    do
+        let "wait_count+=1"
+        # additional data disk is considered attached when number of disk attached to instance more than 1
+        [[ "$(lsblk -p -n -o NAME,TYPE | grep disk | wc -l)" > 1 ]] && break
+        (( ${wait_count} > ${wait_max_attempts} )) && break
+        echo "Waiting for EBS volume to attach (${wait_count})..."
+        sleep 5
+    done
+
+    # find additional data disk, format it and mount
+    for disk in $(lsblk -d -p -n -o NAME,TYPE | grep disk | cut -d' ' -f1)
+    do
+        # partitioning disk if disk is clean
+        [[ $(get_part_list "${disk}") == "" ]] && { echo "Disk ${disk} is clean! Creating partition..."; create_part "${disk}"; }
+        eval $(echo $(get_part_list "${disk}"))
+        # skip disk if his partition is mounted
+        [[ "$MOUNTPOINT" != "" ]] && { echo "Disk $disk have partition $NAME, and it already mounted! Skipping..."; continue; }
+        # mount disk partition if ext4 fs found, but not mounted (volume was added from another instance)
+        [[ "$FSTYPE" == "ext4" ]] && { echo "Disk $disk have partition $NAME with FS, but not mounted! Mounting..."; mount_part "$NAME"; continue; }
+        # create fs and mount when we already have partition, but fs not created yet
+        echo "Disk $disk have partition $NAME, but does not have FS! Creating FS and mounting..."
+        create_fs "${NAME}"
+        mount_part "${NAME}"
+    done
+fi
+
 ###############################################################################################
 ###    Main code begin
 ###############################################################################################
-# Wait for data volume attachment (necessary with AWS EBS)
-wait_count=0
-wait_max_attempts=12
-while true
-do
-    let "wait_count+=1"
-    # additional data disk is considered attached when number of disk attached to instance more than 1
-    [[ "$(lsblk -p -n -o NAME,TYPE | grep disk | wc -l)" > 1 ]] && break
-    (( ${wait_count} > ${wait_max_attempts} )) && break
-    echo "Waiting for EBS volume to attach (${wait_count})..."
-    sleep 5
-done
-
-# find additional data disk, format it and mount
-for disk in $(lsblk -d -p -n -o NAME,TYPE | grep disk | cut -d' ' -f1)
-do
-    # partitioning disk if disk is clean
-    [[ $(get_part_list "${disk}") == "" ]] && { echo "Disk ${disk} is clean! Creating partition..."; create_part "${disk}"; }
-    eval $(echo $(get_part_list "${disk}"))
-    # skip disk if his partition is mounted
-    [[ "$MOUNTPOINT" != "" ]] && { echo "Disk $disk have partition $NAME, and it already mounted! Skipping..."; continue; }
-    # mount disk partition if ext4 fs found, but not mounted (volume was added from another instance)
-    [[ "$FSTYPE" == "ext4" ]] && { echo "Disk $disk have partition $NAME with FS, but not mounted! Mounting..."; mount_part "$NAME"; continue; }
-    # create fs and mount when we already have partition, but fs not created yet
-    echo "Disk $disk have partition $NAME, but does not have FS! Creating FS and mounting..."
-    create_fs "${NAME}"
-    mount_part "${NAME}"
-done
 
 if [ -d $MOUNT_POINT ]
 then
