@@ -218,6 +218,8 @@ Resources:
                 Fn::GetAtt:
                   - RootInstanceProfile
                   - Arn
+            Placement:
+              AvailabilityZone: !Ref ManualAZ
             TagSpecifications:
               - ResourceType: instance
                 Tags:
