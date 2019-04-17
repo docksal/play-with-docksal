@@ -22,7 +22,7 @@ services:
             cd /go/src/github.com/play-with-docker/play-with-docker;
             go run api.go \
               -dind-images "franela/dind,docksal/play-with-docksal:dind-edge,docksal/play-with-docksal:drupal8-edge,docksal/play-with-docksal:wordpress-edge" \
-              -default-dind-image docksal/play-with-docksal:dind-edge \
+              -default-dind-image franela/dind \
               -save /pwd/sessions \
               -name l2 \
             ;
