@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -175,16 +176,23 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		return err
 	}
 
-	_, fileName := filepath.Split(s.Stack)
-	err = p.InstanceUploadFromUrl(i, fileName, "/var/run/pwd/uploads", s.Stack)
-	if err != nil {
-		log.Printf("Error uploading stack file [%s]: %s\n", s.Stack, err)
-		return err
-	}
+	cmd := ""
 
-	fileName = path.Base(s.Stack)
-	file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
-	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
+	if !strings.HasPrefix(s.Stack, "docksal") {
+		_, fileName := filepath.Split(s.Stack)
+		err = p.InstanceUploadFromUrl(i, fileName, "/var/run/pwd/uploads", s.Stack)
+		if err != nil {
+			log.Printf("Error uploading stack file [%s]: %s\n", s.Stack, err)
+			return err
+		}
+
+		fileName = path.Base(s.Stack)
+		file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
+		cmd = fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
+	} else {
+		docksal_url := strings.Join(strings.Split(s.Stack, ":")[1:], ":")
+		cmd = fmt.Sprintf("docker swarm init --advertise-addr eth0 && git clone %s project && cd project && fin init", docksal_url)
+	}
 
 	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
 

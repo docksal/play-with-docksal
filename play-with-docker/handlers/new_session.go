@@ -47,17 +47,18 @@ func NewSession(rw http.ResponseWriter, req *http.Request) {
 	imageName := req.Form.Get("image_name")
 
 	if stack != "" {
-		stack = formatStack(stack)
-		if ok, err := stackExists(stack); err != nil {
-			log.Printf("Error retrieving stack: %s", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		} else if !ok {
-			log.Printf("Stack [%s] could not be found", stack)
-			rw.WriteHeader(http.StatusBadRequest)
-			return
+		if !strings.HasPrefix(stack, "docksal") {
+			stack = formatStack(stack)
+			if ok, err := stackExists(stack); err != nil {
+				log.Printf("Error retrieving stack: %s", err)
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			} else if !ok {
+				log.Printf("Stack [%s] could not be found", stack)
+				rw.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		}
-
 	}
 
 	var duration time.Duration
