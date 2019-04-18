@@ -191,7 +191,9 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		cmd = fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
 	} else {
 		docksal_url := strings.Join(strings.Split(s.Stack, ":")[1:], ":")
-		cmd = fmt.Sprintf("sleep 2 && docker swarm init --advertise-addr eth0 && git clone %s project && cd project && curl -fsSL https://get.docksal.io | bash && fin init", docksal_url)
+		cmd = fmt.Sprintf("while true ; do health_count=0; for container in docksal-ssh-agent docksal-dns docksal-vhost-proxy ;" +
+			"do docker inspect ${container} --format='{{json .State.Health}}' 2>/dev/null | jq \".Status\" | grep '\"healthy\"'>/dev/null ; [[ $? != 0 ]] && health_count=$(expr ${health_count} + 1); " +
+			"done ; [[ ${health_count} == 0 ]] && break ; sleep 2 ; echo \"Waiting docksal system services...\" ;done ; docker swarm init --advertise-addr eth0 ; git clone %s project ; cd project ; fin init", docksal_url)
 	}
 
 	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
