@@ -127,7 +127,6 @@ docker swarm init || true
 modprobe xt_ipvs
 echo "xt_ipvs" >>  /etc/modules
 
-docker pull franela/dind
 curl -L https://github.com/docker/compose/releases/download/1.21.2/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose &&chmod +x /usr/local/bin/docker-compose
 curl -L https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz -o go1.7.1.linux-amd64.tar.gz
 tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz
@@ -149,5 +148,9 @@ rm -rf play-with-docksal
 cd play-with-docker && dep ensure -v
 
 sed -i 's#"playground-domain", "localhost"#"playground-domain", "'${HOST}'"#' config/config.go
+
+docker pull franela/dind
+docker pull docksal/play-with-docksal:dind-edge
+docker pull docksal/play-with-docksal:dind-stable
 
 docker-compose up -d
