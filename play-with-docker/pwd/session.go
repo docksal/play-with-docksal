@@ -193,7 +193,9 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		docksal_url := strings.Join(strings.Split(s.Stack, ":")[1:], ":")
 		cmd = fmt.Sprintf("while true ; do health_count=0; for container in docksal-ssh-agent docksal-dns docksal-vhost-proxy ;" +
 			"do docker inspect ${container} --format='{{json .State.Health}}' 2>/dev/null | jq \".Status\" | grep '\"healthy\"'>/dev/null ; [[ $? != 0 ]] && health_count=$(expr ${health_count} + 1); " +
-			"done ; [[ ${health_count} == 0 ]] && break ; sleep 2 ; echo \"Waiting docksal system services...\" ;done ; docker swarm init --advertise-addr eth0 ; git clone %s project ; cd project ; fin init", docksal_url)
+			"done ; [[ ${health_count} == 0 ]] && break ; sleep 2 ; echo \"Waiting docksal system services...\" ;done ; docker swarm init --advertise-addr eth0 >/dev/null 2>&1 ; git clone %s project ; cd project ; " +
+			"ip=$(curl -sS http://${PWD_HOST_FQDN}/sessions/${SESSION_ID} | jq -r '.instances[] | select(.hostname == \"'$HOSTNAME'\") | .routable_ip'); " +
+			"echo \"VIRTUAL_HOST=project.ip${ip//./-}-${SESSION_ID}-80.direct.${PWD_HOST_FQDN}\" >>.docksal/docksal-local.env; fin init", docksal_url)
 	}
 
 	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}

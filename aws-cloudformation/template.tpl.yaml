@@ -271,4 +271,4 @@ Outputs:
   PersistentVolume:
     Value: !If [CreateDataVolume, !Ref PersistentVolume, !Ref ExistingDataVolume]
   InstanceURL:
-    Value: !Join [ '', [ 'https://', !If [CreateEIP, !Ref IPAddress, !Ref ExistingEIP], '.nip.io' ] ]
+    Value: !Join [ '', [ 'http://', !If [CreateEIP, !Ref IPAddress, !Ref ExistingEIP], '.nip.io' ] ]

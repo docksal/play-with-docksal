@@ -9,7 +9,6 @@ type SessionConfig struct {
 	UserId     string
 	Duration   time.Duration
 	Stack      string
-	Repo       string
 	StackName  string
 	ImageName  string
 }
