@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -57,7 +58,6 @@ func (p *pwd) SessionNew(ctx context.Context, config types.SessionConfig) (*type
 	s.ExpiresAt = s.CreatedAt.Add(config.Duration)
 	s.Ready = true
 	s.Stack = config.Stack
-	s.Repo = config.Repo
 	s.UserId = config.UserId
 	s.PlaygroundId = config.Playground.Id
 
@@ -176,54 +176,27 @@ func (p *pwd) SessionDeployStack(s *types.Session) error {
 		return err
 	}
 
-	_, fileName := filepath.Split(s.Stack)
-	err = p.InstanceUploadFromUrl(i, fileName, "/var/run/pwd/uploads", s.Stack)
-	if err != nil {
-		log.Printf("Error uploading stack file [%s]: %s\n", s.Stack, err)
-		return err
+	cmd := ""
+
+	if !strings.HasPrefix(s.Stack, "docksal") {
+		_, fileName := filepath.Split(s.Stack)
+		err = p.InstanceUploadFromUrl(i, fileName, "/var/run/pwd/uploads", s.Stack)
+		if err != nil {
+			log.Printf("Error uploading stack file [%s]: %s\n", s.Stack, err)
+			return err
+		}
+
+		fileName = path.Base(s.Stack)
+		file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
+		cmd = fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
+	} else {
+		docksal_url := strings.Join(strings.Split(s.Stack, ":")[1:], ":")
+		cmd = fmt.Sprintf("while true ; do health_count=0; for container in docksal-ssh-agent docksal-dns docksal-vhost-proxy ;" +
+			"do docker inspect ${container} --format='{{json .State.Health}}' 2>/dev/null | jq \".Status\" | grep '\"healthy\"'>/dev/null ; [[ $? != 0 ]] && health_count=$(expr ${health_count} + 1); " +
+			"done ; [[ ${health_count} == 0 ]] && break ; sleep 2 ; echo \"Waiting docksal system services...\" ;done ; docker swarm init --advertise-addr eth0 >/dev/null 2>&1 ; git clone %s project ; cd project ; " +
+			"ip=$(curl -sS http://${PWD_HOST_FQDN}/sessions/${SESSION_ID} | jq -r '.instances[] | select(.hostname == \"'$HOSTNAME'\") | .routable_ip'); " +
+			"echo \"VIRTUAL_HOST=project.ip${ip//./-}-${SESSION_ID}-80.direct.${PWD_HOST_FQDN}\" >>.docksal/docksal-local.env; fin init", docksal_url)
 	}
-
-	fileName = path.Base(s.Stack)
-	file := fmt.Sprintf("/var/run/pwd/uploads/%s", fileName)
-	cmd := fmt.Sprintf("docker swarm init --advertise-addr eth0 && docker-compose -f %s pull && docker stack deploy -c %s %s", file, file, s.StackName)
-
-	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
-
-	dockerClient, err := p.dockerFactory.GetForSession(s)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	code, err := dockerClient.ExecAttach(i.Name, []string{"sh", "-c", cmd}, &w)
-	if err != nil {
-		log.Printf("Error executing stack [%s]: %s\n", s.Stack, err)
-		return err
-	}
-
-	log.Printf("Stack execution finished with code %d\n", code)
-	s.Ready = true
-	p.event.Emit(event.SESSION_READY, s.Id, true)
-	if err := p.storage.SessionPut(s); err != nil {
-		return err
-	}
-	return nil
-}
-
-/////// Deploy repo
-
-func (p *pwd) SessionDeployRepo(s *types.Session) error {
-	defer observeAction("SessionDeployRepo", time.Now())
-
-	s.Ready = false
-	p.event.Emit(event.SESSION_READY, s.Id, false)
-	i, err := p.InstanceNew(s, types.InstanceConfig{ImageName: s.ImageName, PlaygroundFQDN: s.Host})
-	if err != nil {
-		log.Printf("Error creating instance for stack [%s]: %s\n", s.Stack, err)
-		return err
-	}
-
-	cmd := fmt.Sprintf("sleep 10 && docker swarm init --advertise-addr eth0 && git clone %s project && cd project && fin init", s.Repo)
 
 	w := sessionBuilderWriter{sessionId: s.Id, event: p.event}
 
@@ -282,8 +255,6 @@ func (p *pwd) SessionSetup(session *types.Session, sconf SessionSetupConf) error
 
 	for _, conf := range sconf.Instances {
 		conf := conf
-		conf.Run = append(conf.Run, []string{"touch /run.log"})
-		log.Printf("lksflksjdf  Got: \n")
 		g.Go(func() error {
 			instanceConf := types.InstanceConfig{
 				ImageName:      conf.Image,

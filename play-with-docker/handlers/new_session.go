@@ -43,22 +43,22 @@ func NewSession(rw http.ResponseWriter, req *http.Request) {
 
 	reqDur := req.Form.Get("session-duration")
 	stack := req.Form.Get("stack")
-	repo := req.Form.Get("repo")
 	stackName := req.Form.Get("stack_name")
 	imageName := req.Form.Get("image_name")
 
 	if stack != "" {
-		stack = formatStack(stack)
-		if ok, err := stackExists(stack); err != nil {
-			log.Printf("Error retrieving stack: %s", err)
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
-		} else if !ok {
-			log.Printf("Stack [%s] could not be found", stack)
-			rw.WriteHeader(http.StatusBadRequest)
-			return
+		if !strings.HasPrefix(stack, "docksal") {
+			stack = formatStack(stack)
+			if ok, err := stackExists(stack); err != nil {
+				log.Printf("Error retrieving stack: %s", err)
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			} else if !ok {
+				log.Printf("Stack [%s] could not be found", stack)
+				rw.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		}
-
 	}
 
 	var duration time.Duration
@@ -78,7 +78,7 @@ func NewSession(rw http.ResponseWriter, req *http.Request) {
 		duration = playground.DefaultSessionDuration
 	}
 
-	sConfig := types.SessionConfig{Playground: playground, UserId: userId, Duration: duration, Stack: stack, Repo: repo, StackName: stackName, ImageName: imageName}
+	sConfig := types.SessionConfig{Playground: playground, UserId: userId, Duration: duration, Stack: stack, StackName: stackName, ImageName: imageName}
 	s, err := core.SessionNew(context.Background(), sConfig)
 	if err != nil {
 		if provisioner.OutOfCapacity(err) {

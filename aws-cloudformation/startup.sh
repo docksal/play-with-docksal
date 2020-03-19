@@ -11,6 +11,9 @@ set -e  # Fail on errors
 DISK_LABEL="data-volume"
 MOUNT_POINT="/data"
 
+##########
+# Functions begin
+
 mount_part()
 {
     DATA_DISK=$1
@@ -38,7 +41,7 @@ get_part_list()
     # the result will contain strings: NAME="/dev/nvme1n1";TYPE="disk";FSTYPE="";LABEL="";MOUNTPOINT="" NAME="/dev/nvme0n1";TYPE="disk";FSTYPE="";LABEL="";MOUNTPOINT=""
     # in our case will be only one string
     DATA_DISK=$1
-    blockdev --rereadpt ${DATA_DISK}
+    partprobe
     lsblk -p -n -P -o NAME,TYPE,FSTYPE,LABEL,MOUNTPOINT ${DATA_DISK} | grep part | sed 's/ /;/g'
 }
 
@@ -50,37 +53,58 @@ create_part()
     /sbin/parted ${DATA_DISK} -s -a optimal mkpart primary 0% 100%
 }
 
+##########
+# Functions end
+
+apt-get -y update
+apt-get -y install awscli
+
+export AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/\(.*\)[a-z]/\1/')
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+STACK_ID=$(aws ec2 describe-instances --instance-id ${INSTANCE_ID} --query 'Reservations[*].Instances[*].Tags[?Key==`stack-id`].Value' --output text)
+EIP=$(aws cloudformation describe-stacks --stack-name=${STACK_ID} --query 'Stacks[*].Outputs[?OutputKey==`IPAddress`].OutputValue' --output text)
+VOLUME_ID=$(aws cloudformation describe-stacks --stack-name=${STACK_ID} --query 'Stacks[*].Outputs[?OutputKey==`PersistentVolume`].OutputValue' --output text)
+
+# attach elastic ip
+[[ "${EIP}" != "" ]] && aws ec2 associate-address --instance-id ${INSTANCE_ID} --public-ip ${EIP}
+
+# attach volume if exist
+if [[ "${VOLUME_ID}" != "" ]]
+then
+    aws ec2 attach-volume --volume-id ${VOLUME_ID} --instance-id ${INSTANCE_ID} --device /dev/sdp
+    # Wait for data volume attachment (necessary with AWS EBS)
+    wait_count=0
+    wait_max_attempts=12
+    while true
+    do
+        let "wait_count+=1"
+        # additional data disk is considered attached when number of disk attached to instance more than 1
+        [[ "$(lsblk -p -n -o NAME,TYPE | grep disk | wc -l)" > 1 ]] && break
+        (( ${wait_count} > ${wait_max_attempts} )) && break
+        echo "Waiting for EBS volume to attach (${wait_count})..."
+        sleep 5
+    done
+
+    # find additional data disk, format it and mount
+    for disk in $(lsblk -d -p -n -o NAME,TYPE | grep disk | cut -d' ' -f1)
+    do
+        # partitioning disk if disk is clean
+        [[ $(get_part_list "${disk}") == "" ]] && { echo "Disk ${disk} is clean! Creating partition..."; create_part "${disk}"; }
+        eval $(echo $(get_part_list "${disk}"))
+        # skip disk if his partition is mounted
+        [[ "$MOUNTPOINT" != "" ]] && { echo "Disk $disk have partition $NAME, and it already mounted! Skipping..."; continue; }
+        # mount disk partition if ext4 fs found, but not mounted (volume was added from another instance)
+        [[ "$FSTYPE" == "ext4" ]] && { echo "Disk $disk have partition $NAME with FS, but not mounted! Mounting..."; mount_part "$NAME"; continue; }
+        # create fs and mount when we already have partition, but fs not created yet
+        echo "Disk $disk have partition $NAME, but does not have FS! Creating FS and mounting..."
+        create_fs "${NAME}"
+        mount_part "${NAME}"
+    done
+fi
+
 ###############################################################################################
 ###    Main code begin
 ###############################################################################################
-# Wait for data volume attachment (necessary with AWS EBS)
-wait_count=0
-wait_max_attempts=12
-while true
-do
-    let "wait_count+=1"
-    # additional data disk is considered attached when number of disk attached to instance more than 1
-    [[ "$(lsblk -p -n -o NAME,TYPE | grep disk | wc -l)" > 1 ]] && break
-    (( ${wait_count} > ${wait_max_attempts} )) && break
-    echo "Waiting for EBS volume to attach (${wait_count})..."
-    sleep 5
-done
-
-# find additional data disk, format it and mount
-for disk in $(lsblk -d -p -n -o NAME,TYPE | grep disk | cut -d' ' -f1)
-do
-    # partitioning disk if disk is clean
-    [[ $(get_part_list "${disk}") == "" ]] && { echo "Disk ${disk} is clean! Creating partition..."; create_part "${disk}"; }
-    eval $(echo $(get_part_list "${disk}"))
-    # skip disk if his partition is mounted
-    [[ "$MOUNTPOINT" != "" ]] && { echo "Disk $disk have partition $NAME, and it already mounted! Skipping..."; continue; }
-    # mount disk partition if ext4 fs found, but not mounted (volume was added from another instance)
-    [[ "$FSTYPE" == "ext4" ]] && { echo "Disk $disk have partition $NAME with FS, but not mounted! Mounting..."; mount_part "$NAME"; continue; }
-    # create fs and mount when we already have partition, but fs not created yet
-    echo "Disk $disk have partition $NAME, but does not have FS! Creating FS and mounting..."
-    create_fs "${NAME}"
-    mount_part "${NAME}"
-done
 
 if [ -d $MOUNT_POINT ]
 then
@@ -99,11 +123,10 @@ echo 'export GOROOT=/usr/local/go' >>/root/.bashrc
 echo 'export GOPATH=/root/go'  >>/root/.bashrc
 echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin' >>/root/.bashrc
 
-docker swarm init
+docker swarm init || true
 modprobe xt_ipvs
 echo "xt_ipvs" >>  /etc/modules
 
-docker pull franela/dind
 curl -L https://github.com/docker/compose/releases/download/1.21.2/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose &&chmod +x /usr/local/bin/docker-compose
 curl -L https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz -o go1.7.1.linux-amd64.tar.gz
 tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz
@@ -125,5 +148,9 @@ rm -rf play-with-docksal
 cd play-with-docker && dep ensure -v
 
 sed -i 's#"playground-domain", "localhost"#"playground-domain", "'${HOST}'"#' config/config.go
+
+docker pull franela/dind
+docker pull docksal/play-with-docksal:dind-edge
+docker pull docksal/play-with-docksal:dind-stable
 
 docker-compose up -d
